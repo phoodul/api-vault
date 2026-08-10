@@ -10,6 +10,8 @@
   - **jetbrains-plugin — 사각지대를 메우니 원래부터 빌드 불가였음이 드러남.** CI 4회 실행, 매번 다른 원인의 계단식: ①`bundledPlugin` 오용 ②`intellij-platform 2.18`=Gradle 9+ / Gradle 9=Kotlin 2.x → **세트 업그레이드**(9.6.1+2.4.10+JUnit 6.1.2) ③`instrumentationTools()` 삭제된 API ④**소스 비호환(미해결)**: `GraphPanel.kt:83` onLoadEnd / `Inspections.kt:51`. **첫 실패가 업데이트 이전(2.1.0)에서 났으므로 M22 이후 계속 깨져 있었다.** → **CI 잡 제거**(상시 red = 알림 부채) + `docs/task.md` 백로그 + **gradle auto-merge 차단** + Dependabot gradle 등록은 유지(취약점 탐지, `jackson 2.18.0→2.22.1` 성과).
   - **순서 교훈:** CI 잡 신설 → green 확인 → 필수 체크 승격 → **그 다음** Dependabot 등록. 이 순서를 어겨 `#141` 이 CI red 에서 auto-merge 됐다.
   - **커밋:** `efc7386`(트리거 축소) · `e10e4ce`(API fix) · `5c8b824`(잡 제거 + monthly + auto-merge 차단). 필수 체크는 6개 유지.
+  - **✅ 실측 검증 (2026-08-08, 사용자 메일함 직접 확인 `from:notifications@github.com`):** 08-02 **26** → 08-03 **37** → 08-04 **54**(수정 작업 당일 = 피크) → 08-05 **11** → **08-06~08-08 = 0건**(`after:2026/08/06` 검색 빈 결과). 제목 상위가 전부 이번에 ignore·채택·그룹화로 처리한 항목(`npm-major` / `download-proxy-major` / `typescript` / `@types/node` / `hkdf` / `sha2` / `hmac`)과 일치. repo 측도 08-06 이후 **run 0 · dependabot PR 0 · 라벨게이트 run 0 · 실패 0**.
+  - **⚠️ 단서:** 0건은 구조적 차단(라벨게이트·CLA)과 **활동 부재**(monthly 전환 → 다음 배치 9월, 그 사이 push 없음)가 함께 작용한 결과다. **9월 배치나 다음 push 때 watching 상태면 성공 run 알림이 다시 온다** → 사용자 조치(Watch → Custom → Pull requests 해제 / Actions "Only notify for failed workflows")는 여전히 유효.
 
 
 - **Time:** 2026-08-04 (resume) — **"끝없는 Dependabot 메시지"의 발생원 규명 = `CLA Assistant` 상시 실패**. 사용자 "dependabot이 끝도 없이 메시지를 보내와".

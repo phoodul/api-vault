@@ -3087,3 +3087,84 @@ ignore 만 유지한다(VS Code 1.96 번들 런타임 = Node 20, 이건 실제�
 
 → `ci.yml` 에 **`VS Code Extension (compile)`** 잡 신설 (`npm ci` + `npm run compile`).
 필수 체크 승격은 branch protection 변경이므로 사용자 승인 후 처리한다.
+
+---
+
+## 2026-08-05 — 알림 폭탄 2차 대응: 남은 발생원 3축 + schedule monthly
+
+CLA 수정(위 항목) 후에도 사용자 메일이 계속 쌓인다는 재보고. 발생원을 다시 집계
+(`gh run list` → conclusion × workflow)해 남은 축을 특정했다. **CLA 자체는 해결된
+상태였다**(해당일 CLA 실패 0건).
+
+### 결정 1 — 라벨 게이트 워크플로에서 `synchronize` 트리거 제거
+
+- **대상:** `claude-pr-review.yml` · `claude-security-review.yml` · `domain-gate.yml`
+- **문제:** 세 워크플로는 job-level `if` 로 `claude-review` 라벨이 붙은 PR 에서만
+  실행되는데, `types: [labeled, synchronize]` 때문에 **모든 PR 의 모든 push 마다
+  run 이 생성되고 즉시 skip** 됐다. 2026-08-04 하루에 **54 run = 전체의 절반 이상**.
+- **결정:** `types: [labeled]` 로 축소. 라벨 부착 시점에만 돌면 목적은 그대로 달성된다.
+  라벨이 붙은 PR 에 새 커밋이 온 뒤 재검토가 필요하면 라벨을 뗐다 다시 붙인다.
+- **교훈:** **skipped 도 run 이고 알림이다.** 앞선 "skipped 는 무해하다"는 판단이 틀렸다.
+
+### 결정 2 — `schedule: weekly → monthly` (7개 생태계 전부)
+
+- **이유:** 생태계 7개가 전부 weekly 라 매주 배치가 돌았고 그 PR 활동 알림이 쌓였다.
+- **안전성:** **Dependabot security updates 는 이 schedule 과 무관하게 즉시 열린다.**
+  따라서 취약점 대응 지연은 없고, 일반 버전업만 최대 4주 늦어진다.
+- 사용자 승인 후 적용.
+
+### 결정 3 — repo watching 은 repo 파일로 제어 불가 (사용자 조치 사항)
+
+GitHub 공식 알림 우선순위: **"Watching" a repository overrides your Actions
+notification settings.** repo owner 는 자동 watching 이므로 **성공·skipped run 까지
+전부 메일**로 온다(2026-08-04 기준 run 98 + PR 10).
+
+- **이것은 `.github/` 어떤 파일로도 막을 수 없다** — 계정 설정 영역이다.
+  `gh` 로 조작하려 해도 `notifications` 스코프가 필요하고, Custom 의 이벤트별
+  토글은 REST API 가 지원하지 않는다.
+- **사용자 조치(순서 중요 — watching 이 Actions 설정을 덮어쓰므로 ①을 먼저):**
+  1. repo → Watch → **Custom** → **Pull requests 해제**
+  2. `github.com/settings/notifications` → System → Actions → **"Only notify for failed workflows"**
+- **원칙:** 앞으로 알림 문제를 다룰 때 **코드로 할 수 있는 일과 계정 설정을 구분해
+  안내한다.** repo 쪽만 고치고 "해결됐다"고 보고하지 않는다.
+
+### 결정 4 — `jetbrains-plugin` CI 잡 제거 + 백로그화, Dependabot 등록은 유지
+
+- **발견:** CI 잡을 붙이자 이 플러그인이 **원래부터 빌드 불가**였음이 드러났다.
+  첫 실패가 업데이트 이전 상태(`intellij-platform 2.1.0`)에서 났으므로 **M22
+  클로즈(2026-05) 이후 계속 깨져 있었고 CI 커버리지 0이라 아무도 몰랐다.**
+- CI 4회 실행으로 계단식 원인 3개를 수정했으나(`bundledPlugin` 오용 → Gradle 9.6.1 +
+  Kotlin 2.4.10 + JUnit 6.1.2 세트 → `instrumentationTools()` 삭제 API), 마지막은
+  **소스 API 비호환**(`GraphPanel.kt:83` onLoadEnd / `Inspections.kt:51`)이라 실제
+  마이그레이션이 필요하다.
+- **결정:**
+  - **CI 잡 제거** — 상시 red 인 워크플로는 그 자체로 알림 부채다(같은 세션 CLA 교훈).
+    빌드 복구 후 `VS Code Extension (compile)` 과 같은 형태로 재신설한다.
+  - **Dependabot gradle 등록은 유지** — 취약점 탐지가 목적이고 이미 성과가 있었다
+    (`jackson 2.18.0 → 2.22.1`, dependency graph 의 gradle 패키지 0개 상태 해소).
+  - **gradle auto-merge 차단**(`dependabot-auto-merge.yml`) — CI 게이트가 없는 경로를
+    자동 머지하면 08-03 download-proxy 사고가 반복된다.
+  - 백로그: `docs/task.md` 의 "jetbrains-plugin 빌드 복구" 섹션.
+
+### 결정 5 — 신규 생태계 등록 순서
+
+**CI 잡 신설 → green 확인 → 필수 체크 승격 → 그 다음 Dependabot 등록.**
+
+이 순서를 어겨(등록과 잡 신설을 같은 커밋에 넣어) `#141` 이 CI red 상태에서
+auto-merge 됐고 `intellij-platform 2.18.1` 이 유입돼 빌드가 더 깨졌다.
+
+### 검증 (2026-08-08 실측)
+
+실제 메일함 확인 — `from:notifications@github.com`:
+
+| 날짜              |                           GitHub 알림 메일 |
+| :---------------- | -----------------------------------------: |
+| 08-02             |                                         26 |
+| 08-03             |                                         37 |
+| 08-04             |                 54 (수정 작업 당일 = 피크) |
+| 08-05             |                                         11 |
+| **08-06 ~ 08-08** | **0** (`after:2026/08/06` 검색 결과 빈 값) |
+
+**단서:** 08-06 이후 0건은 구조적 차단(라벨 게이트·CLA)과 **활동 부재**(monthly 전환으로
+다음 배치는 9월, 그 사이 push 없음)가 함께 작용한 결과다. **9월 배치나 다음 push 때
+watching 상태라면 성공 run 알림이 다시 올 수 있으므로 결정 3의 사용자 조치는 여전히 유효하다.**
