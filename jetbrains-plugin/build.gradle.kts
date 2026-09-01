@@ -33,9 +33,9 @@ dependencies {
         // 2.18 에서 제거됐다(코드 계측이 기본 동작으로 흡수). 2026-08-04 CI 로그:
         // "Unresolved reference 'instrumentationTools'". 제거만 하면 된다.
     }
-    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.22.1")
+    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.22.2")
 
-    testImplementation("org.junit.jupiter:junit-jupiter:6.1.2")
+    testImplementation("org.junit.jupiter:junit-jupiter:6.1.3")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
